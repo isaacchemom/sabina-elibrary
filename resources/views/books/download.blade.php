@@ -7,9 +7,9 @@
 
 
 
-    <div class="row container" style="margin-top:-750px">
+    <div class="row container" style="margin-top:-480px;">
         <div class="col-md-8 offset-md-2">
-            <h5 class="alert alert-info">Download your file here or find it in your email!</h5>
+            <h5 class="alert alert-info">Download your file here !</h5>
 
             <!-- Form to enter transaction ID -->
             <form id="paymentForm">
@@ -34,83 +34,69 @@
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
-    $(document).ready(function() {
-        $('#checkPaymentButton').click(function() {
+  $(document).ready(function() {
+    $('#checkPaymentButton').click(function() {
 
-            var fadeOutTimeout;
-            var mpesaTransactionId = $('#mpesaTransactionId').val();
+        var fadeOutTimeout;
+        var mpesaTransactionId = $('#mpesaTransactionId').val();
 
+        if (mpesaTransactionId.trim() === '') {
+            alert('MPESA Transaction ID is required.');
+            return; // Stop further execution
+        }
 
-    if (mpesaTransactionId.trim() === '') {
-        // Show an error message if the field is empty
-        alert('MPESA Transaction transaction is required.');
-        return; // Stop further execution
-    }
+        $.ajax({
+            url: '/check-payment',
+            type: 'POST',
+            data: {
+                mpesaTransactionId: mpesaTransactionId,
+                _token: '{{ csrf_token() }}' // Include CSRF token
+            },
+            success: function(response) {
+                if (response.success) {
 
-            $.ajax({
-                url: '/check-payment',
-                type: 'POST',
-                data: {
-                    mpesaTransactionId: mpesaTransactionId,
-                    _token: '{{ csrf_token() }}' // Include CSRF token
-                },
-                success: function(response) {
-                    //console.log(response);
-                    if (response.success) {
-
-                        if (fadeOutTimeout) {
+                    if (fadeOutTimeout) {
                         clearTimeout(fadeOutTimeout);
                     }
-                     // Stop any ongoing animations and show the message
-                     $('#responseMessage').stop(true, true).show();
-                        // Display success message and download link
-                        $('#responseMessage').html('<div class="alert alert-success">' + response.message + '</div>');
-                        if (response.file_path) {
 
+                    $('#responseMessage').stop(true, true).show();
+                    $('#responseMessage').html('<div class="alert alert-success">' + response.message + '</div>');
 
-                            $('#responseMessage').append('<a href="' + response.file_path + '" class="btn btn-primary mt-3" target="_blank">Download Your File: ' + response.name + '</a>' + '<br>');
-
-                            if (response.ms_path) {
-                            $('#responseMessage').append('<a href="' + response.ms_path + '" class="btn btn-success mt-3" target="_blank">Download marking scheme</a>');
-                            }
-
-
+                    // Loop through each payment and display download links
+                    response.payments.forEach(function(payment) {
+                        if (payment.file_path) {
+                            $('#responseMessage').append('<a href="' + payment.file_path + '" class="btn btn-primary mt-3" target="_blank">Download Your File: ' + payment.name + '</a><br>');
                         }
-
-
-                    } else {
-                        // Display error message
-                        $('#responseMessage').html('<div class="alert alert-danger">' + response.message + '</div>');
-                    }
+                        if (payment.ms_path) {
+                            $('#responseMessage').append('<a href="' + payment.ms_path + '" class="btn btn-success mt-3" target="_blank">Download Marking Scheme</a><br>');
+                        }
+                    });
 
                     // Set a new timeout to fade out the message
                     fadeOutTimeout = setTimeout(function() {
                         $('#responseMessage').fadeOut('slow'); // Fade out effect
                     }, 20000);
-                    $('#responseMessage').stop(true, true).show();
-                },
-                error: function(xhr, status, error) {
 
-
-                     // Clear any previous timeout
-                     if (fadeOutTimeout) {
-                        clearTimeout(fadeOutTimeout);
-                    }
-
-                    // Stop any ongoing animations and show the message
-                    $('#responseMessage').stop(true, true).show();
-                    console.error('AJAX Error:', error);
-                    $('#responseMessage').html('<div class="alert alert-danger">An error occurred while processing your request.</div>');
-
-                // Set a new timeout to fade out the message
-                fadeOutTimeout = setTimeout(function() {
-                        $('#responseMessage').fadeOut('slow'); // Fade out effect
-                    }, 10000);
-
+                } else {
+                    $('#responseMessage').html('<div class="alert alert-danger">' + response.message + '</div>');
                 }
-            });
+            },
+            error: function(xhr, status, error) {
+                if (fadeOutTimeout) {
+                    clearTimeout(fadeOutTimeout);
+                }
+
+                $('#responseMessage').stop(true, true).show();
+                $('#responseMessage').html('<div class="alert alert-danger">An error occurred while processing your request.</div>');
+
+                fadeOutTimeout = setTimeout(function() {
+                    $('#responseMessage').fadeOut('slow'); // Fade out effect
+                }, 10000);
+            }
         });
     });
+});
+
 
 
 

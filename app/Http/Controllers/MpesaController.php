@@ -20,57 +20,52 @@ use Carbon\Carbon;
 class MpesaController extends Controller
 {
     public function processPayment(Request $request)
-    {
-        // Validate the incoming request
-        $request->validate([
-            'phoneNumber' => 'required|string',
-            'cartItems' => 'required|string', // Ensure cartItems is passed as a JSON string
-            'totalAmount' => 'required|numeric',
-        ]);
+{
+    // Validate the incoming request
+    $request->validate([
+        'phoneNumber' => 'required|string',
+        'cartItems' => 'required|string', // Ensure cartItems is passed as a JSON string
+        'totalAmount' => 'required|numeric',
+    ]);
 
-        // Retrieve the data from the request
-        $phone = $request->input('phoneNumber');
-        $email = $request->input('email');
-        $cartItemsJson = $request->input('cartItems');
-        $totalAmount = $request->input('totalAmount');
+    // Retrieve the data from the request
+    $phone = $request->input('phoneNumber');
+    $email = $request->input('email');
+    $cartItemsJson = $request->input('cartItems');
+    $totalAmount = $request->input('totalAmount');
 
-        // Decode the cart items from JSON string to PHP array
-        $cartItems = json_decode($cartItemsJson, true);
+    // Decode the cart items from JSON string to PHP array
+    $cartItems = json_decode($cartItemsJson, true);
 
-        // Format the total amount
-        $formattedPrice = number_format($totalAmount, 0, '', '');
+    // Format the total amount
+    $formattedPrice = number_format($totalAmount, 0, '', '');
 
-        // Generate a unique transaction ID
-        $transId = Str::random() . $phone . $formattedPrice;
-        // Store the phone number in the session
-        session(['phoneNumber' => $phone]);
+    // Generate a unique transaction ID
+    $transId = Str::random(10) . $phone . $formattedPrice;
+    // Store the phone number in the session
+    session(['phoneNumber' => $phone]);
 
-        $transexists = Transaction::where('phone', $phone)->where('status', 'cart')->first();
+    // Check if there is an existing transaction in 'cart' status
+    $transexists = Transaction::where('phone', $phone)->where('status', 'cart')->first();
 
+    // Incomplete old transactions older than one minute
+    $oneMinuteAgo = Carbon::now()->subMinutes(1);
+    $transi = Transaction::where('created_at', '<', $oneMinuteAgo)
+                ->where('status', 'cart')->get();
 
-        $oneMinuteAgo = Carbon::now()->subMinutes(1);
-
-        // Get all transactions that match the criteria
-        $transi = Transaction::where('created_at', '<', $oneMinuteAgo)
-            ->where('status', 'cart')->get();
-
-        // Check if any transactions were found
-        if ($transi->isNotEmpty()) {
-            // Loop through each transaction and update its status
-            foreach ($transi as $transaction) {
-                $transaction->status = 'Incompleted';
-                $transaction->save();
-            }
+    if ($transi->isNotEmpty()) {
+        foreach ($transi as $transaction) {
+            $transaction->status = 'Incompleted';
+            $transaction->save();
         }
+    }
 
-        if ($transexists) {
+    // If an existing cart transaction is found, return an error response
+    if ($transexists) {
+        return response()->json(['error' => 'You still have a pending transaction. Please wait for one minute and try again.']);
+    }
 
-
-            return response()->json(['error' => 'You still have a pending transaction  wait for one minute and try again']);
-        }
-
-
-        // Process each item in the cart
+    // Process each item in the cart
         foreach ($cartItems as $key => $item) {
             $trans = new Transaction;
 
@@ -79,125 +74,119 @@ class MpesaController extends Controller
             $trans->email = $email;
             $trans->transaction_id = $transId;
             $trans->item_id = $key; // Using the array key as a unique identifier
-            $trans->status = 'cart';
-            // $trans->item_quantity = $item['quantity'];
-            // $trans->item_price = $item['price'];
-            // $trans->total_price = $item['quantity'] * $item['price'];
+            $trans->status= 'cart';
+           // $trans->item_quantity = $item['quantity'];
+           // $trans->item_price = $item['price'];
+           // $trans->total_price = $item['quantity'] * $item['price'];
             //$trans->img_path = $item['img_path'] ?? null; // Handle the case where img_path might be null
 
             // Save the transaction to the database
             $trans->save();
         }
 
-        // Format the phone number for international use
-        $formatedPhone = substr($phone, 1); // Remove the leading '0' (e.g., 726582228)
-        $phoneNumber = "254" . $formatedPhone; // Prepend the country code (e.g., 254726582228)
-        // Return a response (e.g., redirect to a success page or return JSON)
+    // Format the phone number for international use
+    $formatedPhone = substr($phone, 1); // Remove the leading '0'
+    $phoneNumber = "254" . $formatedPhone; // Prepend the country code
 
-        //start of function call to initiate mpesa payment
+    // Initiate MPESA payment
+    $mpesa = new \Safaricom\Mpesa\Mpesa();
+    $BusinessShortCode = 6812038;
+    $LipaNaMpesaPasskey = '7bfdf163449b2aeac8066daec20c77ffc33529f61906e513b1065fef1c06782b';
+    $TransactionType = "CustomerBuyGoodsOnline";
+    $Amount = $formattedPrice;
+    $PartyA = $phoneNumber;
+    $PartyB = 4311968;
+    $PhoneNumber = $phoneNumber;
+    $CallBackURL = "https://sabin-elibrary.co.ke/api/mpesa/stkpush/response";
+    $AccountReference = "Sabina books";
+    $TransactionDesc = "Lipa Na M-PESA web development";
+    $Remarks = "Thank you for paying!";
 
-        $mpesa = new \Safaricom\Mpesa\Mpesa();
-        $BusinessShortCode = 6812038;
-        //$LipaNaMpesaPasskey=env('MPESA_PASS_KEY');
-        $LipaNaMpesaPasskey = '7bfdf163449b2aeac8066daec20c77ffc33529f61906e513b1065fef1c06782b';
+    $stkPushSimulation = $mpesa->STKPushSimulation(
+        $BusinessShortCode,
+        $LipaNaMpesaPasskey,
+        $TransactionType,
+        $Amount,
+        $PartyA,
+        $PartyB,
+        $PhoneNumber,
+        $CallBackURL,
+        $AccountReference,
+        $TransactionDesc,
+        $Remarks
+    );
 
-        // $TransactionType="CustomerPayBillOnline";
-        $TransactionType = "CustomerBuyGoodsOnline";
-        $Amount = $formattedPrice;
-        $PartyA = $phoneNumber;
-        $PartyB = 4311968;
-        $PhoneNumber = $phoneNumber;
-        $CallBackURL = "https://sabin-elibrary.co.ke/api/mpesa/stkpush/response";
-        $AccountReference = "Sabina books";
-        $TransactionDesc = "lipa Na M-PESA web development";
-        $Remarks = "Thank for paying!";
-
-        $stkPushSimulation = $mpesa->STKPushSimulation(
-            $BusinessShortCode,
-            $LipaNaMpesaPasskey,
-            $TransactionType,
-            $Amount,
-            $PartyA,
-            $PartyB,
-            $PhoneNumber,
-            $CallBackURL,
-            $AccountReference,
-            $TransactionDesc,
-            $Remarks
-        );
-
-        Log::info($stkPushSimulation);
+     Log::info($stkPushSimulation);
         $decoded_res = json_decode($stkPushSimulation);
-
         if (isset($decoded_res->errorCode)) {
             // An error occurred
             $message = $decoded_res->errorMessage ?? 'An error occurred';
             $data = ['status' => 'error', 'message' => $message, 'error_code' => $decoded_res->errorCode];
-            return response()->json([
-                'error' => 'MPESA FAILED TO INITIALIZE',
-                'data'  => $data // Assuming $data is the additional information you want to include
-            ]);
+            return response()->json($data);
         }
 
-        $transactionIds = []; // Array to store transaction IDs
 
-        foreach ($cartItems as $key => $item) {
-            // Create a new Payment record for each item
-            $mpesa_transaction = new Payment;
-            $mpesa_transaction->phone = $phoneNumber;
-            $mpesa_transaction->amount = $item['price']; // Amount for the item
-            // $mpesa_transaction->trans_id = $transId; // Transaction ID
-            $mpesa_transaction->bookId = $key; // Item ID (or any unique identifier for the item)
 
-            // Assign additional payment information
-            $mpesa_transaction->MerchantRequestID = $decoded_res->MerchantRequestID ?? null;
-            $mpesa_transaction->CheckoutRequestID = $decoded_res->CheckoutRequestID ?? null;
+  //  $transactionIds = []; // Array to store transaction IDs
+$transactions = [];
 
-            // Save the payment record to the database
-            $mpesa_transaction->save();
+foreach ($cartItems as $key => $item) {
+    try {
+        // Create a new Payment record for each item
+        $formattedPric=$item['price'];
 
-            // Store the ID of the saved transaction
-            $transactionIds[] = $mpesa_transaction->id;
-        }
+        $mpesa_transaction = Payment::create(['phone' => $phone, 'amount' => $formattedPrice,'bookId' => $key]);
+        // $mpesa_transaction = new MpesaTransactions();
 
-        // Retrieve the last saved transaction ID (or any specific ID as needed)
-        $lastTransactionId = end($transactionIds);
-        $phone = session('phoneNumber', null);
-        // Retrieve the specific transaction
-        $lastTransaction = Payment::find($lastTransactionId);
+        $mpesa_transaction->MerchantRequestID = $decoded_res->MerchantRequestID;
+        $mpesa_transaction->CheckoutRequestID = $decoded_res->CheckoutRequestID;
+        $mpesa_transaction->save();
 
-        // Return the response with the specific transaction
-        return response()->json([
-            'success' => 'Please check your phone for the M-PESA prompt and enter your PIN to complete payment!',
-            'transaction' => $lastTransaction // Return the specific transaction
+       // Collect transaction information
+        $transactions[] = $mpesa_transaction;
+
+
+
+
+    } catch (\Exception $e) {
+        // Log the error message along with the item information for debugging
+        Log::error('Error saving Payment record', [
+            'item' => $item,
+            'error' => $e->getMessage(),
         ]);
     }
+}
+    return response()->json([
+            'success' => 'Please check your phone for the M-PESA prompt and enter your PIN to complete payment!',
+            'transaction' => $transactions
+        ]);
 
+
+
+
+}
 
     public function checkPaymentStatus(Request $request)
     {
-
-
-
         $CheckoutRequestID = $request->CheckoutRequestID;
         $MerchantRequestID = $request->MerchantRequestID;
 
         // Retrieve the transaction
         $transaction = Payment::where('MerchantRequestID', $MerchantRequestID)
-            ->where('CheckoutRequestID', $CheckoutRequestID)
-            ->first();
+                              ->where('CheckoutRequestID', $CheckoutRequestID)
+                              ->first();
 
         // Check if the transaction exists and its status
         if ($transaction) {
             if ($transaction->status == 'paid') {
                 return response()->json([
-                    'status' => $transaction->status,
-                    'success' => 'Transaction completed successfully!'
+                    'status' => 'paid',
+                    'success' => 'THank you ,payment received successfully click ok to dowmload your items in cart!'
                 ]);
             } else {
                 return response()->json([
                     'status' => $transaction->status,
-                    'success' => 'Transaction pending!'
+                    'success' => 'Transaction pending !'
                 ]);
             }
         } else {
@@ -213,7 +202,7 @@ class MpesaController extends Controller
     {
         //$user = User::find($user_id);
         $item = items::find($bookId);
-        //  $item_file_path=$item->file_path;
+            //  $item_file_path=$item->file_path;
 
         //$cart = \Cart::getContent();
 
@@ -282,7 +271,7 @@ class MpesaController extends Controller
         $PartyB = 4311968;
         $PhoneNumber = $phoneNumber;
         $CallBackURL = "https://sabin-elibrary.co.ke/api/mpesa/stkpush/response";
-        // $CallBackURL = "https://c2e4-102-213-241-198.ngrok-free.app/api/mpesa/stkpush/response";
+      // $CallBackURL = "https://c2e4-102-213-241-198.ngrok-free.app/api/mpesa/stkpush/response";
         $AccountReference = "Sabina books";
         $TransactionDesc = "lipa Na M-PESA web development";
         $Remarks = "Thank for paying!";
@@ -308,51 +297,57 @@ class MpesaController extends Controller
         return response()->json([
             'message' => 'Check your phone for the M-PESA prompt to enter your PIN...After Payment  check your email for your item',
         ]);
+
+
     }
 
-    public function checkPayment(Request $request)
-    {
-        $mpesaTransactionId = $request->input('mpesaTransactionId');
-        //$formatedPhone = $request->input('formatedPhone');
+   public function checkPayment(Request $request)
+{
+    $mpesaTransactionId = $request->input('mpesaTransactionId');
 
-        //$trans = Transaction::with('items')->where('phone', $formatedPhone)->where('status', 0)->first();
+    // Retrieve all payments that match the given M-PESA transaction ID
+    $payments = Payment::with('transaction.items')
+                        ->where('mpesa_trans_id', $mpesaTransactionId)
+                        ->get();
 
-        $payment = Payment::with('transaction.items')->where('mpesa_trans_id', $mpesaTransactionId)
+    // Check if any payments were found
+    if ($payments->isNotEmpty()) {
+        $paymentData = [];
 
-
-            ->first();
-
-        // dd($payment);
-
-
-        if ($payment) {
-
+        foreach ($payments as $payment) {
             $transaction = $payment->transaction;
             $item = $transaction ? $transaction->items : null;
-            // dd($item);
 
-            // Construct file path
+            // Construct file paths for each item
             $file_path = $item->file_path ? asset('/' . $item->file_path) : null;
             $ms_path = $item->ms_path ? asset('/' . $item->ms_path) : null;
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Payment found.',
+            // Add payment and related item details to the response data
+            $paymentData[] = [
                 'file_path' => $file_path,
                 'ms_path' => $ms_path,
                 'name' => $item->title,
                 'payment' => $payment,
                 'transaction' => $transaction,
                 'item' => $item
-            ]);
-        } else {
-            // Return JSON response if payment does not exist
-            return response()->json([
-                'success' => false,
-                'message' => 'Payment record not found try again or contact us for assistance.'
-            ]);
+            ];
         }
+
+        // Return JSON response with all payment records and their details
+        return response()->json([
+            'success' => true,
+            'message' => 'Payments found.',
+            'payments' => $paymentData
+        ]);
+    } else {
+        // Return JSON response if no payments were found
+        return response()->json([
+            'success' => false,
+            'message' => 'Payment records not found. Please try again or contact us for assistance.'
+        ]);
     }
+}
+
 
 
 
@@ -366,128 +361,134 @@ class MpesaController extends Controller
         $resMessage = $response->Body->stkCallback->ResultDesc;
         $amountPaid = $resData->Item[0]->Value;
         $mpesaTransactionId = $resData->Item[1]->Value;
-        $paymentPhoneNumber = $resData->Item[4]->Value;
-        $paymentDate = $resData->Item[3]->Value;
+          $paymentDate = $resData->Item[2]->Value;
+        $paymentPhoneNumber = $resData->Item[3]->Value;
+
         //replace the first 254 with 0
         $formatedPhone = str_replace("254", "0", $paymentPhoneNumber);
         //$user = transanction::where('phone', $formatedPhone)->first();
 
-        $trans = Transaction::where('phone', $formatedPhone)->where('status', 'Pending')->first();
+         $trans = Transaction::where('phone', $formatedPhone)->where('status', 'pending')->first();
 
-        if (!$trans) {
-            $trans = Transaction::where('phone', $formatedPhone)->where('status', 'cart')->get();
-
-
-            // Check if transactions were found
-            if ($trans->isNotEmpty()) {
-                foreach ($trans as $mytrans) {
-                    $transId = $mytrans->id;
-                    $myitemid = $mytrans->item_id;
-
-                    // Find the item associated with the transaction
-                    $item = items::find($myitemid);
-
-                    if ($item) {
-                        // $item_file_path = $item->file_path;
-                        // $ms_path = $item->ms_path;
-                        //  $title = $item->title;
-                        // $desc = $item->desc;
-                        // $email = $mytrans->email;
-
-                        // Create a new payment record
+       if(!$trans){
+         $trans = Transaction::where('phone', $formatedPhone)->where('status', 'cart')->get();
 
 
-                        //  $payment->amount = $amountPaid;
-                        //  $payment->trans_id = $transId;
-                        //$payment->mpesa_trans_id = $mpesaTransactionId;
-                        //$payment->phone = $formatedPhone;
-                        // $payment->bookId = $myitemid;
+  // Check if transactions were found
+   if ($trans->isNotEmpty()) {
+    foreach ($trans as $mytrans) {
+        $transId = $mytrans->id;
+        $myitemid = $mytrans->item_id;
 
-                        if ($mpesaTransactionId) {
-                            $trans = Payment::where('phone', $formatedPhone)
-                                ->where('status', 'pending')
-                                ->update([
-                                    'status' => 'paid',
-                                    'trans_id' => $transId,
-                                    'mpesa_trans_id' => $mpesaTransactionId
-                                ]);
+        // Find the item associated with the transaction
+        $item = items::find($myitemid);
 
-                            $mytrans->status = 'Paid';
-                            $mytrans->save();
-                        }
+        if ($item) {
+           // $item_file_path = $item->file_path;
+           // $ms_path = $item->ms_path;
+          //  $title = $item->title;
+           // $desc = $item->desc;
+           // $email = $mytrans->email;
 
-
-                        // Update the transaction status to 'Paid'
-
-                    }
-                }
-            }
-        } else {
-            // $trans = Transaction::with('items')->where('phone', $formatedPhone)->where('status', 0)->first();
-
-            $transId = $trans->id;
-            $myitemid = $trans->item_id;
-
-            $item = items::find($myitemid);
-            // $item=$item->file_path;
-            $item_file_path = $item->file_path;
-            $ms_path = $item->ms_path;
-
-            $title = $item->title;
-            $desc = $item->desc;
-            $email = $trans->email;
+            // Create a new payment record
 
 
-            $payment = new Payment;
-            $payment->amount = $amountPaid;
-            $payment->trans_id = $transId;
-            // $payment->user_id = $user->id;
-            // $payment->user_id = 1;
-            $payment->mpesa_trans_id = $mpesaTransactionId;
-            $payment->phone = $formatedPhone;
-            // $payment->bookId=1;
-            $payment->bookId = $myitemid;
+          //  $payment->amount = $amountPaid;
+          //  $payment->trans_id = $transId;
+            //$payment->mpesa_trans_id = $mpesaTransactionId;
+            //$payment->phone = $formatedPhone;
+           // $payment->bookId = $myitemid;
 
-            // Check if mpesa_trans_id already exists in the database
-            $existingPayment = Payment::where('mpesa_trans_id', $mpesaTransactionId)->first();
+            if($mpesaTransactionId ){
+            $trans = Payment::where('phone', $formatedPhone)
+            ->where('status', 'pending')
+            ->update([
+                'status' => 'paid',
+                'trans_id' =>$transId,
+                'mpesa_trans_id' => $mpesaTransactionId
+            ]);
 
-            if (!$existingPayment) {
-                // mpesa_trans_id does not exist, so save the new payment
-                $payment->save();
-            }
-
-            $trans->status = 'Paid';
-            $trans->save();
+            $mytrans->status = 'paid';
+            $mytrans->save();
+        }
 
 
+            // Update the transaction status to 'Paid'
 
-
-            $payment = Payment::where('mpesa_trans_id', $mpesaTransactionId)->where('phone', $formatedPhone)->first();
-
-
-
-            if ($payment) {
-                $fileTittle = $title;
-                $mailData = [
-                    'title' => $title,
-                    'body' => $desc,
-                ];
-
-                // Prepare the attachments array
-                $attachments = [
-                    public_path($item_file_path)
-                ];
-
-                // Add the ms_path to the attachments if it exists
-                if (!empty($ms_path)) {
-                    $attachments[] = public_path($ms_path);
-                }
-
-                // Send the email with multiple attachments
-                Mail::to($email)->send(new bookMail($mailData, $fileTittle, $attachments));
-
-                return redirect('/download')->with('success', 'Email sent successfully! Check your email for the item.')->with('file_path', $item_file_path);
-            }
         }
     }
+
+}
+
+         }  else{
+        // $trans = Transaction::with('items')->where('phone', $formatedPhone)->where('status', 0)->first();
+
+        $transId = $trans->id;
+        $myitemid = $trans->item_id;
+
+        $item = items::find($myitemid);
+        // $item=$item->file_path;
+        $item_file_path = $item->file_path;
+        $ms_path = $item->ms_path;
+
+        $title = $item->title;
+        $desc = $item->desc;
+        $email = $trans->email;
+
+
+        $payment = new Payment;
+        $payment->amount = $amountPaid;
+        $payment->trans_id = $transId;
+        // $payment->user_id = $user->id;
+        // $payment->user_id = 1;
+        $payment->mpesa_trans_id = $mpesaTransactionId;
+        $payment->phone = $formatedPhone;
+        // $payment->bookId=1;
+        $payment->bookId = $myitemid;
+
+        // Check if mpesa_trans_id already exists in the database
+        $existingPayment = Payment::where('mpesa_trans_id', $mpesaTransactionId)->first();
+
+        if (!$existingPayment) {
+            // mpesa_trans_id does not exist, so save the new payment
+            $payment->save();
+        }
+
+        $trans->status = 'Paid';
+        $trans->save();
+
+
+
+
+        $payment = Payment::where('mpesa_trans_id', $mpesaTransactionId)->where('phone', $formatedPhone)->first();
+
+
+
+        if ($payment) {
+            $fileTittle = $title;
+            $mailData = [
+                'title' => $title,
+                'body' => $desc,
+            ];
+
+            // Prepare the attachments array
+            $attachments = [
+                public_path($item_file_path)
+            ];
+
+            // Add the ms_path to the attachments if it exists
+            if (!empty($ms_path)) {
+                $attachments[] = public_path($ms_path);
+            }
+
+            // Send the email with multiple attachments
+            Mail::to($email)->send(new bookMail($mailData, $fileTittle, $attachments));
+
+            return redirect('/download')->with('success', 'Email sent successfully! Check your email for the item.')->with('file_path', $item_file_path);
+        }
+
+    }
+
+}
+
 }

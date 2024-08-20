@@ -128,7 +128,7 @@ class BookController extends Controller
 
     }
 
-    public function addTo(Request $request,)
+    public function addTo(Request $request)
     {
         $book = items::find($request->id); // Use $request->id to get the book ID
 
@@ -179,8 +179,16 @@ class BookController extends Controller
 
           // Get all item IDs from the cart
         $itemIds = array_keys($cart);
-        $transactionStatuses = Transaction::whereIn('item_id', $itemIds)
-        ->pluck('status', 'item_id');
+
+         // Store the phone number in the session
+//session(['phoneNumber' => $phone]);
+  $phone = session('phoneNumber', null);
+
+// Correct the query with multiple where conditions
+$transactionStatuses = Transaction::whereIn('item_id', $itemIds)
+    ->where('phone', $phone)
+    ->pluck('status', 'item_id');
+
         // Return the view with cart items
         return view('layouts.store', compact('cart','transactionStatuses'));
     }

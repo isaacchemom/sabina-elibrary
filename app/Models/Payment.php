@@ -8,6 +8,21 @@ use Illuminate\Database\Eloquent\Model;
 class Payment extends Model
 {
     use HasFactory;
+
+     // Specify the attributes that are mass assignable
+    protected $fillable = [
+        'phone',
+        'amount',
+        'bookId',
+        'status',
+        'mpesa_trans_id',
+        'trans_id',
+        'MerchantRequestID',
+        'CheckoutRequestID'
+    ];
+
+
+
     public function user(){
         return $this->belongsTo('App\Models\User');
     }

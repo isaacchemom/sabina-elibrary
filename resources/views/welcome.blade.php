@@ -98,11 +98,17 @@
                 <span class="bg-info"> <Span class="text-white"> |SABIN ONLINE ELIBRARY| </span> <span class="blink " style="color:white">GET TOP KCSE REVISION PAST PAPER, LESSON PLANS , SCHEMES
                     OF
                     WORK... FOR HELP OR ENQUIRY CALL OR TEXT ON</span>:<span  style="color:rgb(255, 255, 255)"> 0768731081</span></span>
-                    <marquee class=""  style="color:rgb(232, 80, 100)"> WELCOME TO SABIN ELIBRARY ONLINE . WE ARE TRANSPARENT, SIMPLE AND EASY .JUST SELECT YOUR FAVOURTE ITEM PAY VIA MPESA AND INSTANTLY WE SEND THE ITEM IN YOUR EMAIL: FOR HELP OR ENQUIRY CALL ,SMS OR WHATSAPP US ANY TIME !</marquee>
+                    <marquee class=""  style="color:rgb(232, 80, 100)"> WELCOME TO SABIN ELIBRARY ONLINE . IT IS SIMPLE AND EASY ,JUST SELECT YOUR FAVOURTE ITEM PAY VIA MPESA AND INSTANTLY YOU WILL BE DIRECTED TO A DOWNLOAD PAGE: FOR HELP OR ENQUIRY CALL ,SMS OR WHATSAPP US ANY TIME !</marquee>
                 <hr style="margin-top:-25px" class="dropdown-divider" />
 
 
             </p>
+
+             <div class="loader" id="loader">
+                <div class="loading-spinner"></div>
+                <div class="loading-message alert alert-success"><h3>Please wait, processing your payment...</h3></div>
+            </div>
+            <div id="data-container"></div>
 
             <!--END OF COUNT-->
             <!-- Section-->
@@ -172,11 +178,11 @@
                                                         <!-- Product price-->
 
                                                         <div class="mt-autox p-1">
-                                                            <span style="font-size: 81%"
+                                                           {{-- <span style="font-size: 81%"
                                                                 class="btn btn-light btn-outline-primary flex-shrink-0 mt-auto float-start ">Buy
-                                                                now</span>
+                                                                now</span>--}}
                                                                    <span >
-                                                                <a href="javascript:void(0);" data-id="{{ $book->id }}" style="font-size: 70% ;margin-left:2px " class="btn btn-light btn-outline-primary flex-shrink-0 mt-auto float-start add-to-cart"
+                                                                <a href="javascript:void(0);" data-id="{{ $book->id }}" style="font-size: 70% " class="btn btn-light btn-outline-primary flex-shrink-0 mt-auto float-start add-to-cart"
                                                                     style="text-decoration:none; text-transform:uppercase">
                                                                     ADD TO CART
                                                                  </a></span>
@@ -265,12 +271,12 @@
 
 
                                                         <div class="mt-autox p-1">
-                                                            <span style="font-size: 80%"
+                                                          {{--  <span style="font-size: 80%"
                                                                 class="btn btn-light btn-outline-primary flex-shrink-0 mt-auto float-start ">Buy
-                                                                now</span>
+                                                                now</span> --}}
 
                                                                 <span >
-                                                                    <a href="javascript:void(0);" data-id="{{ $book->id }}" style="font-size: 70% ;margin-left:2px " class="btn btn-light btn-outline-primary flex-shrink-0 mt-auto float-start add-to-cart"
+                                                                    <a href="javascript:void(0);" data-id="{{ $book->id }}" style="font-size: 70%  " class="btn btn-light btn-outline-primary flex-shrink-0 mt-auto float-start add-to-cart"
                                                                         style="text-decoration:none; text-transform:uppercase">
                                                                         ADD TO CART
                                                                      </a></span>

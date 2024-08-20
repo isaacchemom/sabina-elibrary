@@ -7,6 +7,7 @@ $cartbooks = \Cart::getContent();
 <html lang="en">
 
 <head>
+    <meta name="google-site-verification" content="DAUvwu9FceWB8-qDUdqZdCHJkRuLuwEpmSSfpCZnkI8" />
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
     <meta name="description" content="" />
@@ -186,7 +187,7 @@ $cartbooks = \Cart::getContent();
         <nav class=" containerx navbar navbar-expand-lg navbar-dark bg-successx mt-2X fixed-top"
             style="background-color: rgb(21, 181, 90);text-transform:uppercase">
             <div class="container px-4 px-lg-5">
-                <img src="{{ asset('img/mylogo.JPG') }}" height="40px" width="60px"
+                <img src="{{ asset('img/mylogo.jpg') }}" height="40px" width="60px"
                     style="border-radius: 15px; box-shadow: 0 2px 2px rgba(250, 64, 64, 0.1); padding: 2px; background-color: #f9fffb;margin-top:-10px">
 
 
@@ -300,7 +301,7 @@ $cartbooks = \Cart::getContent();
                                     <th>Title</th>
                                     {{-- th>Quantity</th>- --}}
                                     <th>Price</th>
-                                    <th>Total</th>
+                                   {{-- <th>Total</th>--}}
                                     <th>Action</th>
                                 </tr>
                             </thead>
@@ -310,7 +311,7 @@ $cartbooks = \Cart::getContent();
                                         <td>{{ $item['title'] }}</td>
                                         {{--    <td>{{ $item['quantity'] }}</td> --}}
                                         <td>{{ $item['price'] }}</td>
-                                        <td>{{ $item['quantity'] * $item['price'] }}</td>
+                                      {{--  <td>{{ $item['quantity'] * $item['price'] }}</td>--}}
 
                                         <td>
 
@@ -322,12 +323,13 @@ $cartbooks = \Cart::getContent();
                                                         class="btn btn-success btn-sm" download>MS</a>
                                                 @endif
                                             @else
-                                                <button class="btn btn-secondary btn-sm" disabled>Not Paid</button>
+                                                <button class="btn btn-secondary btn-sm" disabled>Unpaid</button>
+
                                             @endif
-                                            @if (isset($transactionStatuses[$id]) && $transactionStatuses[$id] !== 'Paid')
-                                                <button class="btn btn-danger btn-sm remove-item"
-                                                    data-id="{{ $id }}">x</button>
-                                            @endif
+
+                                          <button class="btn btn-danger btn-sm remove-item" data-id="{{ $id }}">X</button>
+
+
                                         </td>
                                     </tr>
                                 @endforeach
@@ -343,11 +345,13 @@ $cartbooks = \Cart::getContent();
                     @endif
                 </div>
                 @if (!empty($cart) && count($cart) > 0)
+                  @if (!isset($transactionStatuses[$id]) || $transactionStatuses[$id] !== 'paid')
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                         <button type="button" class="btn btn-primary" id="proceedToPaymentBtn"
                             data-cart="{{ json_encode($cart) }}">Proceed to Payment</button>
                     </div>
+                      @endif
                 @endif
 
             </div>
@@ -546,7 +550,7 @@ $cartbooks = \Cart::getContent();
                     success: function(response) {
                         // Update the cart button and display success message
                         $('#cartButtons')
-        .text('VIEW CART (' + response.totalItems + ')')
+        .text('BUY NOW (' + response.totalItems + ')')
         .css({
             'color': 'white',           // Set the text color to white
             'background-color': 'orange'   // Set the background color to red
@@ -631,6 +635,7 @@ $cartbooks = \Cart::getContent();
             $('#paymentForm').on('submit', function(e) {
                 e.preventDefault();
 
+                   $('#loader').show();
                 var phoneNumber = $('#phoneNumber').val();
                 var email = $('#email').val();
 
@@ -652,11 +657,17 @@ $cartbooks = \Cart::getContent();
                     },
                     success: function(response) {
                         console.log(response)
-                        // Example using conditional checks
-                        let MerchantRequestID = response.transaction && response.transaction
-                            .MerchantRequestID ? response.transaction.MerchantRequestID : null;
-                        let CheckoutRequestID = response.transaction && response.transaction
-                            .CheckoutRequestID ? response.transaction.CheckoutRequestID : null;
+                    $('#loader').hide();
+                     // Check if the response.transaction is an array and has at least one element
+let transaction = Array.isArray(response.transaction) && response.transaction.length > 0 ? response.transaction[0] : null;
+
+let MerchantRequestID = transaction ? (transaction.MerchantRequestID || null) : null;
+let CheckoutRequestID = transaction ? (transaction.CheckoutRequestID || null) : null;
+
+// Use the variables as needed
+console.log('MerchantRequestID:', MerchantRequestID);
+console.log('CheckoutRequestID:', CheckoutRequestID);
+
 
                         if (!localStorage.getItem('MerchantRequestID') && !localStorage.getItem(
                                 'CheckoutRequestID')) {
@@ -697,13 +708,16 @@ $cartbooks = \Cart::getContent();
 
                         if (response.error) {
                             // toastr.error(response.message);
+                               // Hide the loader in case of an error
+                $('#loader').hide();
+
                             console.log("Error:", response
                             .error); // Log the error to ensure it's being captured
                             $('#paymentModal').modal('hide'); // Hide the modal first
                             swal("ERROR!", response.error, 'error', {
                                 button: true,
                                 button: "OK",
-                                timer: 10000,
+                                timer: 6000,
                                 dangerMode: true,
 
                             });
@@ -729,7 +743,9 @@ $cartbooks = \Cart::getContent();
 
 
             function checkPaymentStatus(MerchantRequestID, CheckoutRequestID, url) {
-                // showLoader();
+              // Show the loader
+        $('#loader').show();
+               //  showLoader();
                 $.ajax({
                     url: url,
                     method: 'POST',
@@ -738,7 +754,7 @@ $cartbooks = \Cart::getContent();
                         CheckoutRequestID: CheckoutRequestID
                     },
                     success: function(response) {
-                        if (response.status == 'paid') {
+                        if (response.status === 'paid') {
                             swal("SUCCESS!!", response.success, 'success', {
                                 button: true,
                                 button: "OK",
@@ -747,8 +763,15 @@ $cartbooks = \Cart::getContent();
 
                             }).then(function() {
                                 // hideLoader();
+                                       // Hide the loader in case of an error
+                                      $('#loader').hide();
 
-                                $('#cartModal').modal('show');
+                               // $('#cartModal').modal('show');
+                                                    $.get('{{ route('cart.modal') }}', function(data) {
+                    // Load the modal content and show the modal
+                    $('#cartModal .modal-content').html($(data).find('.modal-content').html());
+                    $('#cartModal').modal('show');
+                });
 
                             });
 
@@ -769,7 +792,7 @@ $cartbooks = \Cart::getContent();
 
             function retry(MerchantRequestID, CheckoutRequestID, url) {
                 let retryCount = 0;
-                const maxRetries = 10;
+                const maxRetries = 8;
                 const interval = 1000; // milliseconds
                 console.log('Retrying...', retryCount);
                 //var message = `Retrying... ${retryCount} - ${response.success}`;
@@ -791,7 +814,7 @@ $cartbooks = \Cart::getContent();
 
 
                                 console.log("MPESA Response: ", response);
-                                if (response.status == 'paid') {
+                                if (response.status === 'paid') {
                                     swal("SUCCESS!!", response.success, 'success', {
                                         button: true,
                                         button: "OK",
@@ -799,12 +822,56 @@ $cartbooks = \Cart::getContent();
                                         dangerMode: true,
 
                                     }).then(function() {
-                                        //   hideLoader();
+                                          // hideLoader();
+                                             $('#loader').hide();
 
-                                        $('#cartModal').modal('show');
+                                         // $('#cartModal').modal('show');
+                                                    $.get('{{ route('cart.modal') }}', function(data) {
+                    // Load the modal content and show the modal
+                    $('#cartModal .modal-content').html($(data).find('.modal-content').html());
+                    $('#cartModal').modal('show');
+                });
+
+
 
                                     });
-                                } else {
+                                }
+
+                                  if (response.status === 'pending') {
+                                      /// toastr.error(response.success);
+                                    swal("Payment not receieved!!", response.success, 'error', {
+                                        button: true,
+                                        button: "OK",
+                                        timer: 20000,
+                                        dangerMode: true,
+
+                                    }).then(function() {
+                                        // hideLoader();
+                                         // $('#cartModal').modal('show');
+                                                   // $.get('{{ route('cart.modal') }}', function(data) {
+                    // Load the modal content and show the modal
+                    //$('#cartModal .modal-content').html($(data).find('.modal-content').html());
+                    //$('#cartModal').modal('show');
+               // });
+                              $('#loader').hide();
+                              $('#cartModal').modal('show');
+
+                                    });
+
+                                    if (retryCount < maxRetries) {
+                                        retryCount++;
+                                        toastr.success(message);
+                                        sendRequest(MerchantRequestID, CheckoutRequestID, url);
+                                    }
+
+
+
+                                }
+
+
+
+
+                                else {
                                     // Retry if still pending
                                     if (retryCount < maxRetries) {
                                         retryCount++;
@@ -829,7 +896,14 @@ $cartbooks = \Cart::getContent();
                                                 timer: 30000
                                             }).then(function() {
                                                 // Redirect to home or any other page
-                                                window.location.href = '/';
+                                               // window.location.href = '/';
+                                                  // $('#cartModal').modal('show');
+                                                    $.get('{{ route('cart.modal') }}', function(data) {
+                    // Load the modal content and show the modal
+                    $('#cartModal .modal-content').html($(data).find('.modal-content').html());
+                    $('#cartModal').modal('show');
+                });
+
                                             });
                                         }
                                     }
